@@ -85,7 +85,7 @@ export default function Dashboard() {
         <div className="p-8 relative z-10">
           <div className="flex items-center mb-10 cursor-pointer transition-transform duration-300 hover:scale-105" onClick={() => window.location.reload()}>
             <img 
-              src="/Thrive logo.png" 
+              src="./Thrive logo.png" 
               alt="Thrive by Travelomate" 
               className="h-20 w-auto object-contain"
             />

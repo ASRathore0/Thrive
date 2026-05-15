@@ -22,7 +22,7 @@ export default function Login() {
       {/* Sidebar with background image */}
       <div className="auth-sidebar bg-secondary relative overflow-hidden">
         <img 
-          src="/Thrive bg.png" 
+          src="./Thrive bg.png" 
           alt="Thrive by Travelomate" 
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -38,7 +38,7 @@ export default function Login() {
         >
           <div className="mb-12 flex justify-center lg:justify-start">
             <img 
-              src="/Travelo black logo-.png" 
+              src="./Travelo black logo-.png" 
               alt="Travelomate Logo" 
               className="h-16 md:h-20 object-contain drop-shadow-sm"
             />
