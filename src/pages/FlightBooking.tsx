@@ -137,7 +137,7 @@ export default function FlightBooking() {
           {/* Background Image inside main */}
           <div 
             className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: 'url("/flight-bg.png")' }}
+            style={{ backgroundImage: 'url("./flight-bg.png")' }}
           />
           
           {/* Main Card */}

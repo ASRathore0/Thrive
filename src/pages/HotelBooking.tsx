@@ -138,7 +138,7 @@ export default function HotelBooking() {
           {/* Background Image inside main */}
           <div 
             className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: 'url("/hotel bg.png")' }}
+            style={{ backgroundImage: 'url("./hotel bg.png")' }}
           />
           
           {/* Main Card */}
