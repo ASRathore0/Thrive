@@ -47,7 +47,7 @@ export default function Login() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider" htmlFor="email">
-                Corporate Email
+                Email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
