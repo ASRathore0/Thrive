@@ -21,7 +21,11 @@ import {
   CreditCard,
   CheckCircle2,
   Sun,
-  Moon
+  Moon,
+  FileText,
+  BarChart3,
+  MoreVertical,
+  ChevronDown
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -30,6 +34,10 @@ export default function Dashboard() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState(1);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isInvoiceMenuOpen, setIsInvoiceMenuOpen] = useState(false);
+  const [isReportsMenuOpen, setIsReportsMenuOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [bookingData, setBookingData] = useState({
     type: 'flight',
     origin: '',
@@ -68,6 +76,11 @@ export default function Dashboard() {
 
   const nextStep = () => setBookingStep(prev => prev + 1);
 
+  const handleLogout = () => {
+    // Add any logout logic here (e.g., clearing tokens)
+    navigate('/login');
+  };
+
   useEffect(() => {
     if (isBookingModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -75,6 +88,29 @@ export default function Dashboard() {
       document.body.style.overflow = 'unset';
     }
   }, [isBookingModalOpen]);
+
+  const invoiceSubItems = [
+    { label: 'Cancellation Invoices' },
+    { label: 'Download Invoice For PNR' },
+    { label: 'Trip History' },
+    { label: 'Corporate Invoice' },
+    { label: 'BTA/CTA Report' },
+  ];
+
+  const reportSubItems = [
+    { label: 'Download Reports' },
+    { label: 'Admin Dashboard' },
+    { label: 'Excel Reports' },
+    { label: 'Locate And Notify' },
+  ];
+
+  const moreSubItems = [
+    { label: 'Configuration' },
+    { label: 'Manual' },
+    { label: 'Delegate' },
+    { label: 'Utility Features' },
+    { label: 'Web Check-In' },
+  ];
 
   return (
     <div className="flex h-screen bg-white overflow-hidden text-secondary">
@@ -158,6 +194,146 @@ export default function Dashboard() {
               }`}
             />
           </div>
+
+          <nav className="hidden lg:flex items-center gap-1 mx-4">
+            <div className="relative">
+              <button
+                onClick={() => setIsInvoiceMenuOpen(!isInvoiceMenuOpen)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                  isDarkMode 
+                    ? 'text-gray-400 hover:text-white hover:bg-white/5' 
+                    : 'text-gray-500 hover:text-primary hover:bg-gray-100'
+                } ${isInvoiceMenuOpen ? (isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-primary') : ''}`}
+              >
+                <FileText size={16} />
+                <span>Invoice</span>
+                <ChevronDown size={14} className={`transition-transform duration-300 ${isInvoiceMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {isInvoiceMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsInvoiceMenuOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className={`absolute left-0 mt-2 w-72 rounded-2xl shadow-2xl border z-20 overflow-hidden ${
+                        isDarkMode ? 'bg-[#1A1C23] border-white/10' : 'bg-white border-gray-100'
+                      }`}
+                    >
+                      <div className="p-2">
+                        {invoiceSubItems.map((subItem) => (
+                          <button
+                            key={subItem.label}
+                            className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                              isDarkMode 
+                                ? 'text-gray-300 hover:bg-white/5 hover:text-white' 
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-primary'
+                            }`}
+                          >
+                            {subItem.label}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => setIsReportsMenuOpen(!isReportsMenuOpen)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                  isDarkMode 
+                    ? 'text-gray-400 hover:text-white hover:bg-white/5' 
+                    : 'text-gray-500 hover:text-primary hover:bg-gray-100'
+                } ${isReportsMenuOpen ? (isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-primary') : ''}`}
+              >
+                <BarChart3 size={16} />
+                <span>Report</span>
+                <ChevronDown size={14} className={`transition-transform duration-300 ${isReportsMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {isReportsMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsReportsMenuOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className={`absolute left-0 mt-2 w-64 rounded-2xl shadow-2xl border z-20 overflow-hidden ${
+                        isDarkMode ? 'bg-[#1A1C23] border-white/10' : 'bg-white border-gray-100'
+                      }`}
+                    >
+                      <div className="p-2">
+                        {reportSubItems.map((subItem) => (
+                          <button
+                            key={subItem.label}
+                            className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                              isDarkMode 
+                                ? 'text-gray-300 hover:bg-white/5 hover:text-white' 
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-primary'
+                            }`}
+                          >
+                            {subItem.label}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                  isDarkMode 
+                    ? 'text-gray-400 hover:text-white hover:bg-white/5' 
+                    : 'text-gray-500 hover:text-primary hover:bg-gray-100'
+                } ${isMoreMenuOpen ? (isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-primary') : ''}`}
+              >
+                <MoreVertical size={16} />
+                <span>More</span>
+                <ChevronDown size={14} className={`transition-transform duration-300 ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {isMoreMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsMoreMenuOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className={`absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl border z-20 overflow-hidden ${
+                        isDarkMode ? 'bg-[#1A1C23] border-white/10' : 'bg-white border-gray-100'
+                      }`}
+                    >
+                      <div className="p-2">
+                        {moreSubItems.map((subItem) => (
+                          <button
+                            key={subItem.label}
+                            className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                              isDarkMode 
+                                ? 'text-gray-300 hover:bg-white/5 hover:text-white' 
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-primary'
+                            }`}
+                          >
+                            {subItem.label}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          </nav>
           
           <div className="flex items-center gap-6">
             <button 
@@ -170,14 +346,48 @@ export default function Dashboard() {
               <Bell size={22} />
               <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-transparent" />
             </button>
-            <div className={`flex items-center gap-3 pl-6 border-l ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
-              <div className="text-right">
-                <p className="text-sm font-bold">Anurag</p>
-                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Corporate Manager</p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center overflow-hidden shadow-md ring-2 ring-white/10">
-                <User size={20} className="text-white" />
-              </div>
+            <div className="relative">
+              <button 
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className={`flex items-center gap-3 pl-6 border-l transition-opacity hover:opacity-80 ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}
+              >
+                <div className="text-right">
+                  <p className="text-sm font-bold">Anurag</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Corporate Manager</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center overflow-hidden shadow-md ring-2 ring-white/10">
+                  <User size={20} className="text-white" />
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setIsProfileOpen(false)} 
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className={`absolute right-0 mt-2 w-48 rounded-2xl shadow-2xl border z-20 overflow-hidden ${
+                        isDarkMode ? 'bg-[#1A1C23] border-white/10' : 'bg-white border-gray-100'
+                      }`}
+                    >
+                      <div className="p-2">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-colors font-bold text-sm"
+                        >
+                          <History size={18} className="rotate-180" />
+                          Logout
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </header>
