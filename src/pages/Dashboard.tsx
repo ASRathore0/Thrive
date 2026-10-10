@@ -28,8 +28,23 @@ import {
   ChevronDown
 } from 'lucide-react';
 
+import { useAuth } from '../context/AuthContext';
+import { getDashboard } from '../services/dashboard';
+import type { DashboardResponse } from '../types/api';
+
+const defaultDashboardData: DashboardResponse = {
+  stats: {
+    total_bookings: 0,
+    upcoming_trips: 0,
+    pending_approvals: 0,
+    spend_this_month: 0,
+  },
+  recent_bookings: [],
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState(1);
@@ -38,6 +53,8 @@ export default function Dashboard() {
   const [isInvoiceMenuOpen, setIsInvoiceMenuOpen] = useState(false);
   const [isReportsMenuOpen, setIsReportsMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [dashboardData, setDashboardData] = useState<DashboardResponse>(defaultDashboardData);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [bookingData, setBookingData] = useState({
     type: 'flight',
     origin: '',
@@ -70,16 +87,35 @@ export default function Dashboard() {
 
   const handleNavClick = (id: string) => {
     setActiveTab(id);
+    if (id === 'bookings') navigate('/my-bookings');
     if (id === 'flights') navigate('/flight-booking');
     if (id === 'hotels') navigate('/hotel-booking');
   };
 
   const nextStep = () => setBookingStep(prev => prev + 1);
 
-  const handleLogout = () => {
-    // Add any logout logic here (e.g., clearing tokens)
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate('/login');
+    }
   };
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        const response = await getDashboard();
+        setDashboardData(response);
+      } catch (error) {
+        console.error('Dashboard fetch failed', error);
+      } finally {
+        setIsLoadingDashboard(false);
+      }
+    };
+
+    loadDashboard();
+  }, []);
 
   useEffect(() => {
     if (isBookingModalOpen) {
@@ -352,8 +388,8 @@ export default function Dashboard() {
                 className={`flex items-center gap-3 pl-6 border-l transition-opacity hover:opacity-80 ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}
               >
                 <div className="text-right">
-                  <p className="text-sm font-bold">Anurag</p>
-                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Corporate Manager</p>
+                  <p className="text-sm font-bold">{user?.name || 'Travel Manager'}</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Corporate Manager'}</p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center overflow-hidden shadow-md ring-2 ring-white/10">
                   <User size={20} className="text-white" />
@@ -401,12 +437,12 @@ export default function Dashboard() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
-                  <h2 className="text-4xl font-bold tracking-tight mb-2">Welcome back, Anurag</h2>
+                  <h2 className="text-4xl font-bold tracking-tight mb-2">Welcome back, {user?.name || 'Travel Manager'}</h2>
                   <div className="flex items-center gap-2 text-gray-500">
                     <div className="w-5 h-5 bg-primary/10 rounded-md flex items-center justify-center">
                       <Plane className="w-3 h-3 text-primary" />
                     </div>
-                    <span>You have <span className="font-bold text-secondary">2 upcoming</span> corporate trips this month.</span>
+                    <span>You have <span className="font-bold text-secondary">{isLoadingDashboard ? '...' : dashboardData.stats.upcoming_trips}</span> upcoming corporate trips this month.</span>
                   </div>
                 </motion.div>
               </div>
@@ -467,44 +503,50 @@ export default function Dashboard() {
               </div>
               
               <div className="space-y-4">
-                {[
-                  { dest: 'London, UK', date: 'May 24 - May 28', type: 'Business Conference', status: 'Confirmed', price: '$1,240' },
-                  { dest: 'Dubai, UAE', date: 'June 12 - June 15', type: 'Sales Meeting', status: 'Pending Approval', price: '$890' },
-                ].map((trip, i) => (
-                  <motion.div 
-                    key={i} 
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 + (i * 0.1) }}
-                    className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex items-center justify-between hover:border-primary/20 hover:shadow-lg transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-6">
-                      <div className="relative w-16 h-16 shrink-0">
-                        <div className="absolute inset-0 bg-primary/5 rounded-2xl rotate-6 group-hover:rotate-12 transition-transform" />
-                        <div className="relative w-full h-full rounded-2xl bg-white border border-gray-100 shadow-sm flex flex-col items-center justify-center text-secondary">
-                          <Calendar size={20} className="mb-0.5 text-primary" />
-                          <span className="text-[10px] font-extrabold uppercase tracking-tighter">MAY</span>
+                {(dashboardData.recent_bookings.length ? dashboardData.recent_bookings : [
+                  { id: 0, type: 'flight', status: 'pending', origin: '—', destination: '—', departure_date: '—' },
+                ]).map((trip, i) => {
+                  const statusLabel = trip.status === 'confirmed' ? 'Confirmed' : trip.status === 'pending' ? 'Pending Approval' : 'Cancelled';
+                  const destinationText = trip.destination || trip.hotel_name || 'No destination';
+                  const dateText = trip.departure_date || 'Date unavailable';
+                  const typeText = trip.type === 'flight' ? 'Flight Booking' : trip.type === 'hotel' ? 'Hotel Booking' : 'Travel Package';
+
+                  return (
+                    <motion.div 
+                      key={trip.id || i} 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.4 + (i * 0.1) }}
+                      className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex items-center justify-between hover:border-primary/20 hover:shadow-lg transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-6">
+                        <div className="relative w-16 h-16 shrink-0">
+                          <div className="absolute inset-0 bg-primary/5 rounded-2xl rotate-6 group-hover:rotate-12 transition-transform" />
+                          <div className="relative w-full h-full rounded-2xl bg-white border border-gray-100 shadow-sm flex flex-col items-center justify-center text-secondary">
+                            <Calendar size={20} className="mb-0.5 text-primary" />
+                            <span className="text-[10px] font-extrabold uppercase tracking-tighter">{dateText === 'Date unavailable' ? 'N/A' : new Date(dateText).toLocaleString('en-US', { month: 'short' }).toUpperCase()}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-bold text-xl group-hover:text-primary transition-colors">{destinationText}</p>
+                          <p className="text-sm text-gray-500 font-medium">{dateText} • {typeText}</p>
                         </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-xl group-hover:text-primary transition-colors">{trip.dest}</p>
-                        <p className="text-sm text-gray-500 font-medium">{trip.date} • {trip.type}</p>
+                      <div className="flex items-center gap-6">
+                        <div className="text-right hidden sm:block">
+                          <p className="text-lg font-bold">{trip.type === 'flight' ? 'INR 5.4K' : trip.type === 'hotel' ? 'INR 9.9K' : 'INR 12K'}</p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Est. Cost</p>
+                        </div>
+                        <span className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                          trip.status === 'confirmed' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+                        }`}>
+                          {statusLabel}
+                        </span>
+                        <ChevronRight className="text-gray-300 group-hover:text-primary transition-colors" />
                       </div>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right hidden sm:block">
-                        <p className="text-lg font-bold">{trip.price}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Est. Cost</p>
-                      </div>
-                      <span className={`px-4 py-2 rounded-xl text-xs font-bold ${
-                        trip.status === 'Confirmed' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-                      }`}>
-                        {trip.status}
-                      </span>
-                      <ChevronRight className="text-gray-300 group-hover:text-primary transition-colors" />
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
 
               {/* Sports Tours */}

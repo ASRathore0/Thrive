@@ -1,336 +1,65 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Plane, 
-  Hotel, 
-  Trophy, 
-  History, 
-  Settings, 
-  Search, 
-  Bell, 
-  User,
-  ArrowLeftRight, 
-  Calendar, 
-  Clock, 
-  ChevronDown, 
-  ArrowLeft,
-  Sun,
-  Moon
-} from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, ArrowRight, Bell, Calendar, CheckCircle2, Clock, History, Hotel, LayoutDashboard, Mail, Moon, Phone, Plane, Search, Settings, ShieldCheck, Sun, Trophy, User, UserRound, X } from 'lucide-react';
 import { motion } from 'motion/react';
+
+import { createFlightBooking, searchFlights } from '../services/flights';
+import type { FlightBookingResponse, FlightSearchResponse } from '../types/api';
+
+const stateKey = 'travelomate_flight_booking_state';
+const dateValue = (daysAhead: number) => { const date = new Date(); date.setDate(date.getDate() + daysAhead); return date.toISOString().split('T')[0]; };
+type Step = 'details' | 'review' | 'confirmed' | string;
+type Passenger = { name: string; email: string; phone: string };
+type SavedState = { isDarkMode: boolean; bookingType: string; tripType: string; cabinClass: string; travelers: string; origin: string; destination: string; departureDate: string; returnDate: string; flights: FlightSearchResponse['flights']; selectedFlight: FlightSearchResponse['flights'][number] | null; step: Step; confirmation: FlightBookingResponse | null; passenger: Passenger };
+const loadState = (): Partial<SavedState> => { try { return JSON.parse(sessionStorage.getItem(stateKey) ?? '{}') as Partial<SavedState>; } catch { return {}; } };
 
 export default function FlightBooking() {
   const navigate = useNavigate();
+  const saved = useMemo(loadState, []);
   const [activeTab, setActiveTab] = useState('flights');
-  const [bookingType, setBookingType] = useState('official');
-  const [tripType, setTripType] = useState('round-trip');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [bookingType, setBookingType] = useState(saved.bookingType ?? 'official');
+  const [tripType, setTripType] = useState(saved.tripType ?? 'round-trip');
+  const [cabinClass, setCabinClass] = useState(saved.cabinClass ?? 'economy');
+  const [travelers, setTravelers] = useState(saved.travelers ?? '1');
+  const [origin, setOrigin] = useState(saved.origin ?? 'Delhi (DEL)');
+  const [destination, setDestination] = useState(saved.destination ?? 'Mumbai (BOM)');
+  const [departureDate, setDepartureDate] = useState(saved.departureDate ?? dateValue(7));
+  const [returnDate, setReturnDate] = useState(saved.returnDate ?? dateValue(10));
+  const [isDarkMode, setIsDarkMode] = useState(saved.isDarkMode ?? false);
+  const [flights, setFlights] = useState<FlightSearchResponse['flights']>(saved.flights ?? []);
+  const [selectedFlight, setSelectedFlight] = useState<FlightSearchResponse['flights'][number] | null>(saved.selectedFlight ?? null);
+  const [step, setStep] = useState<Step>(saved.step ?? 'details');
+  const [confirmation, setConfirmation] = useState<FlightBookingResponse | null>(saved.confirmation ?? null);
+  const [passenger, setPassenger] = useState<Passenger>(saved.passenger ?? { name: 'Anurag', email: 'admin@travelomate.in', phone: '' });
+  const [loading, setLoading] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'bookings', label: 'My Bookings', icon: History },
-    { id: 'flights', label: 'Flights', icon: Plane },
-    { id: 'hotels', label: 'Hotels', icon: Hotel },
-    { id: 'sports', label: 'Sports Tours', icon: Trophy },
-    { id: 'settings', label: 'Settings', icon: Settings },
-  ];
+  useEffect(() => { sessionStorage.setItem(stateKey, JSON.stringify({ isDarkMode, bookingType, tripType, cabinClass, travelers, origin, destination, departureDate, returnDate, flights, selectedFlight, step, confirmation, passenger })); }, [isDarkMode, bookingType, tripType, cabinClass, travelers, origin, destination, departureDate, returnDate, flights, selectedFlight, step, confirmation, passenger]);
 
-  const handleNavClick = (id: string) => {
-    setActiveTab(id);
-    if (id === 'dashboard') navigate('/dashboard');
-    if (id === 'flights') navigate('/flight-booking');
-    if (id === 'hotels') navigate('/hotel-booking');
-  };
+  const navItems = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'bookings', label: 'My Bookings', icon: History }, { id: 'flights', label: 'Flights', icon: Plane }, { id: 'hotels', label: 'Hotels', icon: Hotel }, { id: 'sports', label: 'Sports Tours', icon: Trophy }, { id: 'settings', label: 'Settings', icon: Settings }];
+  const input = `w-full rounded-xl border px-4 py-3 text-sm outline-none transition-colors ${isDarkMode ? 'border-gray-700 bg-[#0F1014] text-white focus:border-gray-500' : 'border-gray-200 bg-transparent text-secondary focus:border-gray-400'}`;
+  const surface = isDarkMode ? 'border-gray-800 bg-[#17181d]' : 'border-gray-200 bg-white';
+  const go = (id: string) => { setActiveTab(id); if (id === 'dashboard') navigate('/dashboard'); if (id === 'bookings') navigate('/my-bookings'); if (id === 'hotels') navigate('/hotel-booking'); };
+  const search = async () => { if (!origin.trim() || !destination.trim() || !departureDate || (tripType === 'round-trip' && !returnDate)) { setError('Please complete your origin, destination, and travel dates.'); return; } if (tripType === 'round-trip' && returnDate <= departureDate) { setError('Return date must be after departure date.'); return; } setLoading(true); setError(''); try { const response = await searchFlights({ origin, destination, departure_date: departureDate, return_date: tripType === 'round-trip' ? returnDate : undefined, travelers: Number(travelers), cabin_class: cabinClass }); setFlights(response.flights); } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to search flights.'); } finally { setLoading(false); } };
+  const selectFlight = (flight: FlightSearchResponse['flights'][number]) => { setSelectedFlight(flight); setStep('details'); setConfirmation(null); setError(''); };
+  const review = () => { if (!passenger.name.trim() || !passenger.email.trim() || !passenger.phone.trim()) { setError('Please add passenger name, email, and phone number.'); return; } if (!/^\S+@\S+\.\S+$/.test(passenger.email)) { setError('Please enter a valid passenger email.'); return; } setError(''); setStep('review'); };
+  const confirm = async () => { if (!selectedFlight) return; setBookingLoading(true); setError(''); try { const response = await createFlightBooking({ flight_id: selectedFlight.id, origin, destination, departure_date: departureDate, return_date: tripType === 'round-trip' ? returnDate : undefined, travelers: Number(travelers), cabin_class: cabinClass, passenger_name: passenger.name.trim(), passenger_email: passenger.email.trim(), passenger_phone: passenger.phone.trim() }); setConfirmation(response); setStep('confirmed'); } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to confirm this flight.'); } finally { setBookingLoading(false); } };
+  const reset = () => { setFlights([]); setSelectedFlight(null); setStep('details'); setConfirmation(null); setError(''); };
 
-  return (
-    <div className="flex h-screen bg-white overflow-hidden text-secondary">
-      {/* Sidebar - adding a subtle gradient for depth */}
-      <aside className="w-72 bg-secondary text-white flex flex-col hidden md:flex relative overflow-hidden transition-all border-r border-white/5">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent opacity-50" />
-        
-        <div className="p-8 relative z-10">
-          <div className="flex items-center mb-10 cursor-pointer transition-transform duration-300 hover:scale-105" onClick={() => navigate('/dashboard')}>
-            <img 
-              src="./Thrive logo.png" 
-              alt="Thrive by Travelomate" 
-              className="h-20 w-auto object-contain"
-            />
-          </div>
-          
-          <nav className="space-y-1">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  activeTab === item.id 
-                    ? 'bg-primary text-white shadow-lg shadow-primary/30' 
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <item.icon size={20} />
-                <span className="font-medium">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="mt-auto p-6 relative z-10">
-          <div className="bg-white/5 rounded-3xl p-5 border border-white/10 backdrop-blur-md">
-            <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] font-black mb-3">Account Manager</p>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-primary shadow-lg shadow-primary/20 flex items-center justify-center text-white font-black text-sm">TM</div>
-              <div>
-                <p className="text-sm font-bold leading-none mb-1">Travelomate Support</p>
-                <p className="text-[10px] text-gray-500 font-medium">Available 24/7</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className={`flex-1 flex flex-col min-w-0 overflow-y-auto relative ${isDarkMode ? 'bg-[#0F1014]' : 'bg-gray-50'}`}>
-        {/* Header */}
-        <header className={`h-20 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20 ${
-          isDarkMode ? 'bg-white/10 border-b border-white/5 text-white' : 'bg-white/80 border-b border-gray-200 text-secondary'
-        }`}>
-          <div className="relative w-96 max-w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 transition-colors group-focus-within:text-primary" />
-            <input 
-              type="text" 
-              placeholder="Search flights, hotels or tournaments..." 
-              className={`w-full pl-10 pr-4 py-2.5 border border-transparent rounded-xl outline-none transition-all shadow-inner ${
-                isDarkMode 
-                  ? 'bg-black/40 focus:bg-black/60 focus:border-gray-700 text-white placeholder:text-gray-500'
-                  : 'bg-black/5 focus:bg-white focus:border-gray-300 text-secondary placeholder:text-gray-500'
-              }`}
-            />
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <button 
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`relative p-2 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-primary'}`}
-            >
-              {isDarkMode ? <Sun size={22} /> : <Moon size={22} />}
-            </button>
-            <button className={`relative p-2 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-primary'}`}>
-              <Bell size={22} />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-transparent" />
-            </button>
-            <div className={`flex items-center gap-3 pl-6 border-l ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
-              <div className="text-right">
-                <p className="text-sm font-bold">Anurag</p>
-                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Corporate Manager</p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center overflow-hidden shadow-md ring-2 ring-white/10">
-                <User size={20} className="text-white" />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Flight Booking Content Area */}
-        <div className="flex-1 relative flex items-center justify-center p-4 min-h-[calc(100vh-5rem)]">
-          {/* Background Image inside main */}
-          <div 
-            className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: 'url("./flight-bg.png")' }}
-          />
-          
-          {/* Main Card */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`relative z-10 w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-3xl backdrop-blur-xl border shadow-2xl p-8 pt-12 mt-8 transition-colors duration-300 ${
-              isDarkMode 
-                ? 'bg-[#0F1014]/100 border-gray-800' 
-                : 'bg-white/90 border-gray-100 shadow-gray-0'
-            }`}
-            style={{ scrollbarWidth: 'thin' }}
-          >
-        {/* Top Tabs */}
-        {/* <div className="absolute -top-6 left-1/2 -translate-x-1/2 flex rounded-2xl overflow-hidden bg-[#1A1B20] border border-gray-800 shadow-xl">
-          <button className="flex items-center gap-2 px-12 py-4 bg-primary text-white font-bold transition-colors">
-            <Plane size={20} />
-            Flight
-          </button>
-          <button className="flex items-center gap-2 px-12 py-4 text-gray-400 hover:text-white hover:bg-gray-800/50 transition-colors font-medium">
-            <Hotel size={20} />
-            Hotel
-          </button>
-        </div> */}
-
-        {/* Form Content */}
-        <div className="space-y-8 mt-4">
-          {/* Radio Buttons */}
-          <div className="flex items-center gap-8">
-            {[
-              { id: 'official', label: 'Official Booking' },
-              { id: 'guest', label: 'Official Guest' },
-              { id: 'personal', label: 'Personal' }
-            ].map((type) => (
-              <label key={type.id} className="flex items-center gap-3 cursor-pointer group">
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                  bookingType === type.id 
-                    ? 'border-primary' 
-                    : isDarkMode ? 'border-gray-500 group-hover:border-gray-400' : 'border-gray-300 group-hover:border-gray-400'
-                }`}>
-                  {bookingType === type.id && <div className="w-2.5 h-2.5 bg-primary rounded-full" />}
-                </div>
-                <span className={`text-sm font-medium ${
-                  bookingType === type.id 
-                    ? (isDarkMode ? 'text-white' : 'text-secondary') 
-                    : (isDarkMode ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-500 group-hover:text-gray-700')
-                }`}>
-                  {type.label}
-                </span>
-              </label>
-            ))}
-          </div>
-
-          {/* Select Dropdowns */}
-          <div className="flex gap-4">
-            <div className="relative w-48">
-              <select className={`w-full appearance-none bg-transparent border rounded-xl px-4 py-3 text-sm outline-none cursor-pointer transition-colors ${
-                isDarkMode 
-                  ? 'border-gray-800 text-white focus:border-gray-600' 
-                  : 'border-gray-200 text-secondary focus:border-gray-400'
-              }`}>
-                <option>Round Trip</option>
-                <option>One Way</option>
-                <option>Multi-city</option>
-              </select>
-              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-            <div className="relative w-48">
-              <select className={`w-full appearance-none bg-transparent border rounded-xl px-4 py-3 text-sm outline-none cursor-pointer transition-colors ${
-                isDarkMode 
-                  ? 'border-gray-800 text-white focus:border-gray-600' 
-                  : 'border-gray-200 text-secondary focus:border-gray-400'
-              }`}>
-                <option>Economy</option>
-                <option>Premium Economy</option>
-                <option>Business</option>
-                <option>First Class</option>
-              </select>
-              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-            <div className="relative w-48">
-              <select className={`w-full appearance-none bg-transparent border rounded-xl px-4 py-3 text-sm outline-none cursor-pointer transition-colors ${
-                isDarkMode 
-                  ? 'border-gray-800 text-white focus:border-gray-600' 
-                  : 'border-gray-200 text-secondary focus:border-gray-400'
-              }`}>
-                <option>1 Traveller</option>
-                <option>2 Travellers</option>
-                <option>3 Travellers</option>
-              </select>
-              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Origin / Destination */}
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Plane size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 rotate-45" />
-              <input 
-                type="text" 
-                placeholder="Origin" 
-                className={`w-full bg-transparent border rounded-xl pl-12 pr-4 py-4 text-sm outline-none transition-colors ${
-                  isDarkMode 
-                    ? 'border-gray-800 text-white focus:border-gray-600' 
-                    : 'border-gray-200 text-secondary focus:border-gray-400'
-                }`}
-                defaultValue="Delhi (DEL)"
-              />
-            </div>
-            <button className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-              isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
-            }`}>
-              <ArrowLeftRight size={20} className="text-primary" />
-            </button>
-            <div className="relative flex-1">
-              <Plane size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 rotate-[135deg]" />
-              <input 
-                type="text" 
-                placeholder="Destination" 
-                className={`w-full bg-transparent border rounded-xl pl-12 pr-4 py-4 text-sm outline-none transition-colors ${
-                  isDarkMode 
-                    ? 'border-gray-800 text-white focus:border-gray-600' 
-                    : 'border-gray-200 text-secondary focus:border-gray-400'
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Dates & Times */}
-          <div className="flex gap-4">
-            {/* Departure */}
-            <div className="flex-1 flex gap-4">
-              <div className="relative flex-1">
-                <Calendar size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <div className={`border rounded-xl pl-12 pr-4 py-2 cursor-text transition-colors ${
-                  isDarkMode ? 'border-gray-800 hover:border-gray-600' : 'border-gray-200 hover:border-gray-400'
-                }`}>
-                  <p className="text-gray-400 text-xs mb-0.5">Departure Date</p>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-secondary'}`}>Select date</p>
-                </div>
-              </div>
-              <div className="relative flex-1">
-                <Clock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <div className={`border rounded-xl pl-12 pr-4 py-2 cursor-text transition-colors ${
-                  isDarkMode ? 'border-gray-800 hover:border-gray-600' : 'border-gray-200 hover:border-gray-400'
-                }`}>
-                  <p className="text-gray-400 text-xs mb-0.5">Departure Time</p>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-secondary'}`}>Anytime</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Return */}
-            <div className="flex-1 flex gap-4">
-              <div className="relative flex-1">
-                <Calendar size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <div className={`border rounded-xl pl-12 pr-4 py-2 cursor-text transition-colors ${
-                  isDarkMode ? 'border-gray-800 hover:border-gray-600' : 'border-gray-200 hover:border-gray-400'
-                }`}>
-                  <p className="text-gray-400 text-xs mb-0.5">Return Date</p>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-secondary'}`}>Select date</p>
-                </div>
-              </div>
-              <div className="relative flex-1">
-                <Clock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <div className={`border rounded-xl pl-12 pr-4 py-2 cursor-text transition-colors ${
-                  isDarkMode ? 'border-gray-800 hover:border-gray-600' : 'border-gray-200 hover:border-gray-400'
-                }`}>
-                  <p className="text-gray-400 text-xs mb-0.5">Return Time</p>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-secondary'}`}>Anytime</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-4">
-            <button className="flex items-center gap-2 text-primary font-medium hover:text-primary-dark transition-colors">
-              More Options
-              <ChevronDown size={16} />
-            </button>
-            <div className="flex items-center gap-4">
-              <button className="px-8 py-3 rounded-xl border border-primary text-primary font-bold hover:bg-primary/5 transition-colors uppercase text-sm tracking-wider">
-                Add to Cart
-              </button>
-              <button className="px-10 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark transition-colors uppercase text-sm tracking-wider">
-                Search
-              </button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-        </div>
-      </main>
-    </div>
-  );
+  return <div className={`flex h-screen overflow-hidden ${isDarkMode ? 'bg-[#0F1014] text-white' : 'bg-gray-50 text-secondary'}`}>
+    <aside className="hidden w-72 flex-col bg-secondary text-white md:flex"><div className="p-8"><div className="mb-10 cursor-pointer" onClick={() => navigate('/dashboard')}><img src="./Thrive logo.png" alt="Thrive by Travelomate" className="h-20 w-auto object-contain" /></div><nav className="space-y-1">{navItems.map((item) => <button key={item.id} onClick={() => go(item.id)} className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 ${activeTab === item.id ? 'bg-primary text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><item.icon size={20} /><span>{item.label}</span></button>)}</nav></div><div className="mt-auto p-6"><div className="rounded-3xl border border-white/10 bg-white/5 p-5"><p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Account Manager</p><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-sm font-black">TM</div><div><p className="text-sm font-bold">Travelomate Support</p><p className="text-[10px] text-gray-500">Available 24/7</p></div></div></div></div></aside>
+    <main className="relative flex min-w-0 flex-1 flex-col overflow-y-auto"><header className={`sticky top-0 z-20 flex h-20 items-center justify-between border-b px-8 backdrop-blur-md ${isDarkMode ? 'border-white/5 bg-white/10' : 'border-gray-200 bg-white/80'}`}><div className="relative w-96 max-w-full"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input placeholder="Search flights, hotels or tournaments..." className={`w-full rounded-xl border border-transparent py-2.5 pl-10 pr-4 outline-none ${isDarkMode ? 'bg-black/40 text-white' : 'bg-black/5'}`} /></div><div className="flex items-center gap-5"><button type="button" onClick={() => setIsDarkMode(!isDarkMode)} className="text-gray-500 hover:text-primary">{isDarkMode ? <Sun size={22} /> : <Moon size={22} />}</button><button type="button" className="relative text-gray-500"><Bell size={22} /><span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" /></button><div className="flex items-center gap-3 border-l border-gray-200 pl-5"><div className="text-right"><p className="text-sm font-bold">Anurag</p><p className="text-xs text-gray-500">Corporate Manager</p></div><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-white"><User size={20} /></div></div></div></header>
+      {flights.length === 0 && !selectedFlight ? <SearchPage {...{ isDarkMode, bookingType, setBookingType, tripType, setTripType, cabinClass, setCabinClass, travelers, setTravelers, origin, setOrigin, destination, setDestination, departureDate, setDepartureDate, returnDate, setReturnDate, input, surface, error, loading, search }} /> : selectedFlight ? <BookingPage {...{ isDarkMode, surface, input, selectedFlight, step, setStep, passenger, setPassenger, error, review, confirm, bookingLoading, confirmation, reset, origin, destination, departureDate, travelers }} /> : <ResultsPage {...{ isDarkMode, surface, flights, origin, destination, departureDate, travelers, cabinClass, setFlights, selectFlight }} />}
+    </main>
+  </div>;
 }
+
+type SearchProps = { isDarkMode: boolean; bookingType: string; setBookingType: (value: string) => void; tripType: string; setTripType: (value: string) => void; cabinClass: string; setCabinClass: (value: string) => void; travelers: string; setTravelers: (value: string) => void; origin: string; setOrigin: (value: string) => void; destination: string; setDestination: (value: string) => void; departureDate: string; setDepartureDate: (value: string) => void; returnDate: string; setReturnDate: (value: string) => void; input: string; surface: string; error: string; loading: boolean; search: () => void };
+function SearchPage(props: SearchProps) { const { isDarkMode, bookingType, setBookingType, tripType, setTripType, cabinClass, setCabinClass, travelers, setTravelers, origin, setOrigin, destination, setDestination, departureDate, setDepartureDate, returnDate, setReturnDate, input, surface, error, loading, search } = props; return <div className="relative flex min-h-[calc(100vh-5rem)] flex-1 items-center justify-center p-4"><div className="absolute inset-0 bg-cover bg-center opacity-70" style={{ backgroundImage: 'url("./mainbg2.png")' }} /><motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className={`relative z-10 w-full max-w-5xl rounded-3xl border p-8 shadow-2xl md:p-10 ${surface}`}><p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Flight booking</p><h1 className="mt-2 text-3xl font-bold">Where will you go next?</h1><div className="mt-8 flex flex-wrap gap-6">{['official', 'guest', 'personal'].map((type) => <label key={type} className="flex items-center gap-2 text-sm"><input type="radio" checked={bookingType === type} onChange={() => setBookingType(type)} className="accent-primary" />{type === 'official' ? 'Official Booking' : type === 'guest' ? 'Official Guest' : 'Personal'}</label>)}</div><div className="mt-7 grid gap-4 md:grid-cols-3">{[['Trip type', tripType, setTripType, [['round-trip', 'Round trip'], ['one-way', 'One way']]], ['Cabin', cabinClass, setCabinClass, [['economy', 'Economy'], ['premium-economy', 'Premium Economy'], ['business', 'Business'], ['first', 'First Class']]], ['Travellers', travelers, setTravelers, [['1', '1 Traveller'], ['2', '2 Travellers'], ['3', '3 Travellers'], ['4', '4 Travellers']]]].map(([label, value, setter, options]) => <label key={label as string} className="text-sm font-semibold">{label as string}<select value={value as string} onChange={(event) => (setter as (value: string) => void)(event.target.value)} className={`${input} mt-2`}>{(options as string[][]).map(([option, text]) => <option key={option} value={option}>{text}</option>)}</select></label>)}</div><div className="mt-4 grid gap-4 md:grid-cols-[1fr_48px_1fr]"><label className="text-sm font-semibold">Origin<input value={origin} onChange={(event) => setOrigin(event.target.value)} className={`${input} mt-2`} /></label><button type="button" onClick={() => { setOrigin(destination); setDestination(origin); }} className="mt-7 flex h-12 items-center justify-center rounded-full text-primary hover:bg-primary/10"><ArrowLeftRight size={20} /></button><label className="text-sm font-semibold">Destination<input value={destination} onChange={(event) => setDestination(event.target.value)} className={`${input} mt-2`} /></label></div><div className="mt-4 grid gap-4 md:grid-cols-2"><label className="text-sm font-semibold">Departure<input type="date" value={departureDate} onChange={(event) => setDepartureDate(event.target.value)} className={`${input} mt-2`} /></label><label className="text-sm font-semibold">Return<input type="date" disabled={tripType === 'one-way'} value={returnDate} onChange={(event) => setReturnDate(event.target.value)} className={`${input} mt-2 disabled:opacity-50`} /></label></div>{error && <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}<div className="mt-8 flex justify-end"><button type="button" onClick={search} disabled={loading} className="rounded-xl bg-primary px-8 py-3 font-bold text-white disabled:opacity-60">{loading ? 'Searching...' : 'Search flights'}</button></div></motion.div></div>; }
+
+type ResultsProps = { isDarkMode: boolean; surface: string; flights: FlightSearchResponse['flights']; origin: string; destination: string; departureDate: string; travelers: string; cabinClass: string; setFlights: (value: FlightSearchResponse['flights']) => void; selectFlight: (flight: FlightSearchResponse['flights'][number]) => void };
+function ResultsPage({ isDarkMode, surface, flights, origin, destination, departureDate, travelers, cabinClass, setFlights, selectFlight }: ResultsProps) { return <div className={`min-h-[calc(100vh-5rem)] p-5 md:p-10 ${isDarkMode ? 'bg-[#0F1014]' : 'bg-gray-50'}`}><div className="mx-auto max-w-7xl"><div className="flex flex-col justify-between gap-4 border-b pb-7 md:flex-row md:items-end"><div><p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Flight search results</p><h1 className="mt-2 text-3xl font-bold">{origin} to {destination}</h1><p className="mt-2 text-sm text-gray-500">{departureDate} · {travelers} traveller{Number(travelers) === 1 ? '' : 's'} · {cabinClass}</p></div><button type="button" onClick={() => setFlights([])} className="flex items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft size={17} /> Modify search</button></div><div className="mt-8 space-y-4">{flights.map((flight) => <article key={flight.id} className={`grid gap-4 rounded-2xl border p-5 shadow-sm md:grid-cols-[1fr_190px] ${surface}`}><div className="flex items-center justify-between gap-5"><div><p className="text-xl font-bold">{flight.airline}</p><p className="text-sm text-gray-500">{flight.flight_number} · {flight.stops === 0 ? 'Non-stop' : `${flight.stops} stop`}</p></div><div className="flex items-center gap-5"><div><p className="text-2xl font-bold">{flight.departure_time}</p><p className="text-xs text-gray-500">{origin}</p></div><div className="text-center text-xs text-gray-400"><Clock size={14} className="mx-auto" />{flight.duration}</div><div><p className="text-2xl font-bold">{flight.arrival_time}</p><p className="text-xs text-gray-500">{destination}</p></div></div></div><div className="flex items-center justify-between border-t pt-4 md:block md:border-l md:border-t-0 md:pl-5"><div><p className="text-xs text-gray-500">From</p><p className="text-2xl font-bold">{flight.currency} {flight.price.toLocaleString('en-IN')}</p></div><button type="button" onClick={() => selectFlight(flight)} className="mt-3 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white">Select flight</button></div></article>)}</div></div></div>; }
+
+type BookingProps = { isDarkMode: boolean; surface: string; input: string; selectedFlight: FlightSearchResponse['flights'][number]; step: Step; setStep: (step: Step) => void; passenger: Passenger; setPassenger: (passenger: Passenger) => void; error: string; review: () => void; confirm: () => void; bookingLoading: boolean; confirmation: FlightBookingResponse | null; reset: () => void; origin: string; destination: string; departureDate: string; travelers: string };
+function BookingPage({ isDarkMode, surface, input, selectedFlight, step, setStep, passenger, setPassenger, error, review, confirm, bookingLoading, confirmation, reset, origin, destination, departureDate, travelers }: BookingProps) { return <div className={`min-h-[calc(100vh-5rem)] p-5 md:p-10 ${isDarkMode ? 'bg-[#0F1014]' : 'bg-gray-50'}`}><div className="mx-auto max-w-7xl"><div className="mb-8 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Flight booking</p><h1 className="mt-2 text-3xl font-bold">{step === 'details' ? 'Passenger details' : step === 'review' ? 'Review and confirm' : 'Booking confirmation'}</h1></div>{step !== 'confirmed' && <button type="button" onClick={reset} className="flex items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft size={17} /> Back to results</button>}</div><div className="mb-6 flex flex-wrap items-center gap-3 text-sm font-semibold text-gray-400"><span className={step === 'details' || step !== 'details' ? 'text-primary' : ''}>1. Passenger details</span><span>/</span><span className={step === 'review' || step === 'confirmed' ? 'text-primary' : ''}>2. Review</span><span>/</span><span className={step === 'confirmed' ? 'text-primary' : ''}>3. Confirmation</span></div><div className="grid gap-6 lg:grid-cols-[1fr_360px]"><section className={`rounded-3xl border p-6 md:p-8 ${surface}`}>{step === 'details' && <div className="space-y-6"><p className="text-gray-500">These details are used for your travel documents.</p><label className="block text-sm font-semibold">Passenger name<input value={passenger.name} onChange={(event) => setPassenger({ ...passenger, name: event.target.value })} className={`${input} mt-2`} /></label><div className="grid gap-4 md:grid-cols-2"><label className="text-sm font-semibold">Email<input type="email" value={passenger.email} onChange={(event) => setPassenger({ ...passenger, email: event.target.value })} className={`${input} mt-2`} /></label><label className="text-sm font-semibold">Phone<input value={passenger.phone} onChange={(event) => setPassenger({ ...passenger, phone: event.target.value })} className={`${input} mt-2`} /></label></div>{error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}<div className="flex justify-end border-t border-gray-100 pt-6"><button type="button" onClick={review} className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-bold text-white">Review booking <ArrowRight size={18} /></button></div></div>}{step === 'review' && <div className="space-y-7"><p className="text-gray-500">Check every detail before confirming.</p><div className="divide-y rounded-2xl border border-gray-200"><div className="flex justify-between gap-4 p-5"><span className="text-gray-500">Passenger</span><strong className="text-right">{passenger.name}<br /><span className="text-sm font-normal text-gray-500">{passenger.email} · {passenger.phone}</span></strong></div><div className="flex justify-between gap-4 p-5"><span className="text-gray-500">Trip</span><strong className="text-right">{origin} to {destination}<br /><span className="text-sm font-normal text-gray-500">{departureDate} · {travelers} traveller{Number(travelers) === 1 ? '' : 's'}</span></strong></div></div>{error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}<div className="flex justify-between border-t border-gray-100 pt-6"><button type="button" onClick={() => setStep('details')} className="flex items-center gap-2 rounded-xl border border-gray-200 px-5 py-3 font-semibold"><ArrowLeft size={17} /> Edit</button><button type="button" onClick={confirm} disabled={bookingLoading} className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-bold text-white disabled:opacity-60">{bookingLoading ? 'Confirming...' : 'Confirm booking'} <ShieldCheck size={18} /></button></div></div>}{step === 'confirmed' && confirmation && <div className="flex min-h-[500px] flex-col items-center justify-center text-center"><CheckCircle2 className="text-green-600" size={64} /><p className="mt-5 text-sm font-bold uppercase tracking-[0.2em] text-green-600">Booking confirmed</p><h2 className="mt-3 text-4xl font-bold">You're all set.</h2><p className="mt-3 text-gray-500">Your flight details are ready for {passenger.email}.</p><div className="mt-7 rounded-2xl bg-gray-50 px-7 py-4 text-left"><p className="text-xs uppercase tracking-[0.2em] text-gray-400">Booking reference</p><p className="mt-1 text-xl font-bold">{confirmation.booking.id}</p></div><button type="button" onClick={reset} className="mt-7 rounded-xl bg-primary px-6 py-3 font-bold text-white">Back to flights</button></div>}</section><aside className={`h-fit rounded-3xl border p-5 ${surface}`}><div className="flex items-center gap-3"><div className="rounded-xl bg-primary/10 p-3 text-primary"><Plane size={22} /></div><div><p className="text-xl font-bold">{selectedFlight.airline}</p><p className="text-sm text-gray-500">{selectedFlight.flight_number}</p></div></div><div className="mt-6 flex items-center justify-between"><div><p className="text-2xl font-bold">{selectedFlight.departure_time}</p><p className="text-xs text-gray-500">{origin}</p></div><div className="text-center text-xs text-gray-400"><Clock size={15} className="mx-auto" />{selectedFlight.duration}</div><div className="text-right"><p className="text-2xl font-bold">{selectedFlight.arrival_time}</p><p className="text-xs text-gray-500">{destination}</p></div></div><div className="mt-6 border-t border-gray-100 pt-5"><div className="flex justify-between text-sm"><span className="text-gray-500">Fare</span><strong>{selectedFlight.currency} {selectedFlight.price.toLocaleString('en-IN')}</strong></div><div className="mt-3 flex justify-between border-t border-gray-100 pt-3"><strong>Total</strong><strong className="text-primary">{selectedFlight.currency} {(selectedFlight.price * Number(travelers)).toLocaleString('en-IN')}</strong></div></div></aside></div></div></div>; }
